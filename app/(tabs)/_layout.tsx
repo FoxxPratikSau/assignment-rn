@@ -1,37 +1,38 @@
-import { Tabs } from 'expo-router';
+import { View } from 'react-native';
 import React from 'react';
+import { Tabs } from 'expo-router';
+import CustomTabBar from '@/components/CustomTabBar';
+import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
-import { TabBarIcon } from '@/components/navigation/TabBarIcon';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
-
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
+const TabLayout = () => {
   return (
-    <Tabs
+    <Tabs 
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-      }}>
-      <Tabs.Screen
+        tabBarStyle: { display: 'none' },
+      }}
+      tabBar={(props: BottomTabBarProps) => <CustomTabBar {...props} />}
+    >
+      <Tabs.Screen 
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'home' : 'home-outline'} color={color} />
-          ),
+          href: '/',
         }}
       />
-      <Tabs.Screen
-        name="explore"
+      <Tabs.Screen 
+        name="qrscan"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? 'code-slash' : 'code-slash-outline'} color={color} />
-          ),
+          href: '/qrscan',
+        }}
+      />
+      <Tabs.Screen 
+        name="wallet"
+        options={{
+          href: '/wallet',
         }}
       />
     </Tabs>
   );
-}
+};
+
+export default TabLayout;

@@ -1,37 +1,113 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
+import React, { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
+import { useFonts } from 'expo-font';
+import { ActivityIndicator, View, Text } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
 
-import { useColorScheme } from '@/hooks/useColorScheme';
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
+const ONBOARDING_KEY = '@has_seen_onboarding';
+
+
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+  const [fontsLoaded, fontError] = useFonts({
+    "SFPro-Bold": require("../assets/fonts/sf-pro-bold.ttf"),
+    "SFPro-Medium": require("../assets/fonts/sf-pro-medium.ttf"),
+    "SFPro-Regular": require("../assets/fonts/sf-pro-regular.ttf"),
   });
 
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
+
+  // Temporary change for development: always show onboarding screen
+  const showOnboarding = true; // Set this to true to force showing the onboarding screen
+
   useEffect(() => {
-    if (loaded) {
+    const checkOnboardingStatus = async () => {
+      try {
+        const value = await AsyncStorage.getItem(ONBOARDING_KEY);
+        setHasSeenOnboarding(value === 'true');
+      } catch (error) {
+        console.error('Error checking onboarding status:', error);
+        setHasSeenOnboarding(false);
+      }
+    };
+    checkOnboardingStatus();
+  }, []);
+
+  useEffect(() => {
+    if (fontsLoaded || fontError) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [fontsLoaded, fontError]);
 
-  if (!loaded) {
-    return null;
+  if (!fontsLoaded || hasSeenOnboarding === null) {
+    return (
+      <View className="flex-1 justify-center items-center">
+        <ActivityIndicator size="large" color="#22C55E" />
+        <Text className="mt-2 text-gray-600">Loading...</Text>
+      </View>
+    );
+  }
+
+  if (fontError) {
+    return (
+      <View className="flex-1 justify-center items-center">
+        <Text>Error loading fonts</Text>
+      </View>
+    );
   }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" />
-      </Stack>
-    </ThemeProvider>
+    <Stack
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: '#22C55E',
+        },
+        headerTintColor: '#FFFFFF',
+        headerTitleStyle: {
+          fontFamily: 'SFPro-Medium',
+          fontSize: 20,
+        },
+        headerTitleAlign: 'left',
+        headerShadowVisible: false,
+        headerShown: false,
+      }}
+    >
+      {showOnboarding ? (
+        <Stack.Screen
+          name="index"
+          options={{
+            headerShown: false,
+            title: 'Onboarding',
+          }}
+        />
+      ) : (
+        hasSeenOnboarding ? (
+          <Stack.Screen
+            name="/(tabs)"
+            options={{
+              headerShown: false,
+            }}
+          />
+        ) : (
+          <Stack.Screen
+            name="OnboardingScreen"
+            options={{
+              headerShown: false,
+              title: 'Onboarding',
+            }}
+          />
+        )
+      )}
+      <Stack.Screen
+        name="statistics/[id]"
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+          animation: 'slide_from_right',
+        }}
+      />
+    </Stack>
   );
 }

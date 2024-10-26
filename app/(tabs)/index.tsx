@@ -1,70 +1,118 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import { View } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Header from '@/components/header';
+import { fetchUserData } from '@/api/fetchData';
+import { ApiResponse, Transaction } from '@/models/userModel';
+import Account from '@/components/Account';
+import { LoadingScreen } from '@/components/LoadingScreen';
+import ActionButtons from '@/components/ActionButtons';
+import TransactionSheet from '@/components/TransactionSheet';
+import TransferSheet from '@/components/TransferSheet';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+const TRANSACTIONS_KEY = '@app_transactions';
 
-export default function HomeScreen() {
+const HomeScreen = () => {
+  const [userData, setUserData] = useState<ApiResponse | null>(null);
+  const [isTransferVisible, setTransferVisible] = useState(false);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+
+  useEffect(() => {
+    const getData = async () => {
+      try {
+        const savedTransactions = await AsyncStorage.getItem(TRANSACTIONS_KEY);
+        const parsedSavedTransactions: Transaction[] = savedTransactions 
+          ? JSON.parse(savedTransactions) 
+          : [];
+
+        const data = await fetchUserData();
+        if (data) {
+          setUserData(data);
+          
+          const apiTransactions = Object.values(data.record.transactions).flat();
+          const combinedTransactions = [...parsedSavedTransactions, ...apiTransactions]
+            .reduce((acc: Transaction[], current) => {
+              const exists = acc.find(t => t.id === current.id);
+              if (!exists) {
+                acc.push(current);
+              }
+              return acc;
+            }, [])
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+          setTransactions(combinedTransactions);
+          await AsyncStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(combinedTransactions));
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      }
+    };
+    getData();
+  }, []);
+
+  const handleRequest = () => {
+    console.log('Request pressed');
+  };
+
+  const handleTransfer = useCallback(() => {
+    setTransferVisible(true);
+  }, []);
+
+  const handleCloseTransfer = useCallback(() => {
+    setTransferVisible(false);
+  }, []);
+
+  const handleAdd = () => {
+    console.log('Add pressed');
+  };
+
+  const handleNewTransfer = async (transferData: Omit<Transaction, 'id' | 'date'>) => {
+    const newTransaction: Transaction = {
+      ...transferData,
+      id: Date.now(),
+      date: new Date().toISOString()
+    };
+
+    const updatedTransactions = [newTransaction, ...transactions];
+    setTransactions(updatedTransactions);
+
+    try {
+      await AsyncStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(updatedTransactions));
+    } catch (error) {
+      console.error('Error saving transaction:', error);
+    }
+  };
+
+  if (!userData) {
+    return <LoadingScreen />;
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView className="flex-1">
+        <Header />
+        <View className="py-4">
+          <Account cards={userData.record.user.cards} />
+        </View>
+        <View className="px-6">
+          <ActionButtons 
+            onRequestPress={handleRequest}
+            onTransferPress={handleTransfer}
+            onAddPress={handleAdd}
+          />
+        </View>
+        <TransactionSheet transactions={transactions} />
+        <TransferSheet
+          isVisible={isTransferVisible}
+          onClose={handleCloseTransfer}
+          onTransfer={handleNewTransfer}
+          cards={userData.record.user.cards}
         />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({ ios: 'cmd + d', android: 'cmd + m' })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+      </SafeAreaView>
+    </GestureHandlerRootView>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
+export default HomeScreen;
